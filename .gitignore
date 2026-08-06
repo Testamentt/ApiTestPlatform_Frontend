@@ -1,0 +1,17 @@
+# Node
+node_modules/
+dist/
+*.local
+
+# 构建产物
+*.tsbuildinfo
+coverage/
+
+# 日志
+logs/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
