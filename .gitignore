@@ -1,7 +1,11 @@
 # Node
 node_modules/
 dist/
-*.local
+
+# 环境与本地配置（.env 含 token，禁止入库；.env.example 保留）
+.env
+.env.local
+.env.*.local
 
 # 构建产物
 *.tsbuildinfo
