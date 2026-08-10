@@ -1,0 +1,567 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { MagicStick, Refresh } from '@element-plus/icons-vue'
+import yaml from 'js-yaml'
+import type { UploadFile } from 'element-plus'
+import { createGeneration, getGeneration } from '@/api/generate'
+import { confirmCase, listCases } from '@/api/cases'
+import StatusTag from '@/components/common/StatusTag.vue'
+import { formatTime, truncate } from '@/utils/format'
+import type { GenerateSummary, GenerationTask, TestCase } from '@/types'
+
+// 与后端 swagger.max_upload_bytes 一致的前端预检上限（RULES §2.3：来自配置契约，此处镜像）
+const MAX_DOC_BYTES = 2_000_000
+
+// ---- Swagger 文档输入 ----
+const docText = ref('')
+const operationIdsText = ref('')
+const forceFull = ref(false)
+const submitting = ref(false)
+
+function handleFileChange(file: UploadFile): void {
+  const raw = file.raw
+  if (!raw) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    docText.value = String(reader.result ?? '')
+  }
+  reader.readAsText(raw)
+}
+
+/** 前端预检：JSON 优先，失败降级 YAML；要求对象且含 paths（后端做最终权威校验） */
+function parseDocument(): Record<string, unknown> | null {
+  const text = docText.value.trim()
+  if (!text) {
+    ElMessage.warning('请先粘贴或上传 Swagger/OpenAPI 3.x 文档')
+    return null
+  }
+  if (text.length > MAX_DOC_BYTES) {
+    ElMessage.error('文档超过 2MB 上限（对应后端 swagger.max_upload_bytes），拒绝生成')
+    return null
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    try {
+      parsed = yaml.load(text)
+    } catch {
+      ElMessage.error('文档既不是合法 JSON，也不是合法 YAML')
+      return null
+    }
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    ElMessage.error('文档必须是对象结构（OpenAPI 3.x）')
+    return null
+  }
+  const doc = parsed as Record<string, unknown>
+  if (!doc.paths || typeof doc.paths !== 'object') {
+    ElMessage.error('文档缺少 paths 字段，不是有效的 OpenAPI 3.x 文档')
+    return null
+  }
+  return doc
+}
+
+// ---- 生成任务 + 轮询 ----
+const genTask = ref<GenerationTask | null>(null)
+let timer: number | undefined
+
+const summary = computed<GenerateSummary>(
+  () => (genTask.value?.result_summary as GenerateSummary | null) ?? {},
+)
+
+function startPolling(taskId: number): void {
+  stopPolling()
+  timer = window.setInterval(async () => {
+    try {
+      const task = await getGeneration(taskId)
+      genTask.value = task
+      if (task.status === 'success' || task.status === 'failed') {
+        stopPolling()
+        if (task.status === 'success') {
+          ElMessage.success('用例生成完成，草稿已入库（防幻觉护栏：默认 draft）')
+          void loadDrafts()
+        }
+      }
+    } catch {
+      stopPolling()
+    }
+  }, 2000)
+}
+
+function stopPolling(): void {
+  if (timer) window.clearInterval(timer)
+  timer = undefined
+}
+
+function resetGeneration(): void {
+  stopPolling()
+  genTask.value = null
+}
+
+async function submitGenerate(): Promise<void> {
+  const doc = parseDocument()
+  if (!doc) return
+  submitting.value = true
+  try {
+    const ids = operationIdsText.value
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    const task = await createGeneration({
+      document: doc,
+      operation_ids: ids.length ? ids : null,
+      force_full: forceFull.value,
+    })
+    genTask.value = task
+    ElMessage.success(`生成任务已创建（#${task.id}）`)
+    startPolling(task.id)
+  } catch {
+    // why：拦截器已提示（如无未覆盖用例 422 / 畸形文档）
+  } finally {
+    submitting.value = false
+  }
+}
+
+// ---- AI 草稿用例列表 ----
+const draftCases = ref<TestCase[]>([])
+const draftLoading = ref(false)
+
+async function loadDrafts(): Promise<void> {
+  draftLoading.value = true
+  try {
+    const page = await listCases({ status: 'draft', page_size: 50 })
+    draftCases.value = page.items
+  } catch {
+    draftCases.value = []
+  } finally {
+    draftLoading.value = false
+  }
+}
+
+async function onConfirmDraft(row: TestCase): Promise<void> {
+  try {
+    const { value } = await ElMessageBox.prompt('输入审核人（reviewer）', `确认激活用例 #${row.id}`, {
+      confirmButtonText: '确认激活',
+      cancelButtonText: '取消',
+      inputPattern: /\S+/,
+      inputErrorMessage: '审核人不能为空',
+    })
+    await confirmCase(row.id, value.trim())
+    ElMessage.success(`用例 #${row.id} 已激活`)
+    await loadDrafts()
+  } catch {
+    // why：取消或后端拒绝均不打扰
+  }
+}
+
+onMounted(() => void loadDrafts())
+onBeforeUnmount(stopPolling)
+</script>
+
+<template>
+  <div class="page">
+    <header class="page__header">
+      <div>
+        <h1 class="page__title">AI 生成</h1>
+        <p class="page__desc">粘贴 Swagger/OpenAPI 文档 → LLM 生成用例（Celery 异步，默认 draft，人工审核后执行）</p>
+      </div>
+      <el-button v-if="genTask" @click="resetGeneration">新建生成</el-button>
+    </header>
+
+    <div class="gen-grid">
+      <!-- 输入区 -->
+      <section class="panel gen-form">
+        <div class="gen-form__head">
+          <h3 class="gen-form__title">文档输入</h3>
+          <el-upload
+            :auto-upload="false"
+            :show-file-list="false"
+            accept=".json,.yaml,.yml,.txt"
+            :on-change="handleFileChange"
+          >
+            <el-button :icon="MagicStick" plain>读取文件</el-button>
+          </el-upload>
+        </div>
+
+        <el-input
+          v-model="docText"
+          type="textarea"
+          :rows="12"
+          placeholder='粘贴 OpenAPI 3.x 文档（JSON 或 YAML），如 {"openapi":"3.0.0","paths":{...}}'
+          class="mono gen-form__doc"
+        />
+
+        <div class="gen-form__row">
+          <el-input
+            v-model="operationIdsText"
+            placeholder="定向 operation_ids（逗号分隔，可空=智能决策）"
+            class="gen-form__ops"
+          />
+          <el-checkbox v-model="forceFull">全量重建</el-checkbox>
+          <el-button type="primary" :loading="submitting" @click="submitGenerate">
+            {{ genTask ? '重新生成' : '触发生成' }}
+          </el-button>
+        </div>
+        <p class="gen-form__hint">
+          触发优先级：定向 operation_ids &gt; 全量重建 &gt; 最新影响分析未覆盖接口。重复输入命中幂等，返回同一任务。
+        </p>
+      </section>
+
+      <!-- 生成任务进度 -->
+      <section class="panel gen-progress">
+        <h3 class="gen-form__title">生成任务</h3>
+        <div v-if="!genTask" class="gen-progress__empty">
+          <span class="gen-progress__icon">⏻</span>
+          <p>尚未触发生成。粘贴文档后点击「触发生成」，任务以 202 立即返回并在后台执行。</p>
+        </div>
+
+        <template v-else>
+          <div class="gen-progress__meta">
+            <div class="gen-progress__row">
+              <span class="gen-progress__label">任务 ID</span>
+              <span class="mono num">#{{ genTask.id }}</span>
+            </div>
+            <div class="gen-progress__row">
+              <span class="gen-progress__label">状态</span>
+              <StatusTag :status="genTask.status" />
+            </div>
+            <div class="gen-progress__row">
+              <span class="gen-progress__label">接口数</span>
+              <span class="num">{{ genTask.operation_count }}</span>
+            </div>
+            <div v-if="genTask.prompt_version" class="gen-progress__row">
+              <span class="gen-progress__label">prompt 版本</span>
+              <span class="mono">{{ genTask.prompt_version }}</span>
+            </div>
+          </div>
+
+          <template v-if="genTask.status === 'success'">
+            <div class="gen-result">
+              <div class="gen-result__item">
+                <span class="num">{{ summary.draft_created ?? 0 }}</span>
+                <span>入库草稿</span>
+              </div>
+              <div class="gen-result__item">
+                <span class="num">{{ summary.generated ?? 0 }}</span>
+                <span>生成总数</span>
+              </div>
+              <div class="gen-result__item">
+                <span class="num is-rejected">{{ summary.rejected ?? 0 }}</span>
+                <span>校验拒绝</span>
+              </div>
+              <div class="gen-result__item">
+                <span class="num">{{ summary.skipped_by_filter ?? 0 }}</span>
+                <span>过滤跳过</span>
+              </div>
+              <div class="gen-result__item">
+                <span class="num is-cost">{{ summary.cost_total?.toFixed(4) ?? '—' }}</span>
+                <span>成本($)</span>
+              </div>
+            </div>
+            <div v-if="summary.rejected_detail && summary.rejected_detail.length" class="gen-rejected">
+              <p class="gen-rejected__title">被拒详情（schema 校验失败）</p>
+              <div v-for="item in summary.rejected_detail" :key="item.operation_id" class="gen-rejected__item">
+                <span class="mono">{{ item.operation_id }}</span>
+                <span>{{ item.reason }}</span>
+              </div>
+            </div>
+          </template>
+
+          <template v-if="genTask.status === 'failed'">
+            <el-alert
+              :title="`生成失败（${genTask.error_stage ?? 'unknown'}）：${genTask.error_msg ?? ''}`"
+              type="error"
+              :closable="false"
+              show-icon
+            />
+          </template>
+
+          <div v-if="genTask.status === 'running' || genTask.status === 'pending'" class="gen-progress__wait">
+            <span class="gen-progress__pulse" />
+            {{ genTask.status === 'pending' ? '排队中…' : 'LLM 生成中（约 30-60s）…' }}
+          </div>
+        </template>
+      </section>
+    </div>
+
+    <!-- AI 草稿用例 -->
+    <section class="panel gen-draft">
+      <div class="panel__head">
+        <h3 class="panel__title">AI 生成草稿（默认 draft，需人工审核激活）</h3>
+        <el-button text :icon="Refresh" @click="loadDrafts">刷新</el-button>
+      </div>
+      <el-table v-loading="draftLoading" :data="draftCases" stripe>
+        <el-table-column label="ID" width="64">
+          <template #default="{ row }">
+            <span class="mono num">#{{ row.id }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="名称" min-width="180">
+          <template #default="{ row }">
+            <div class="cell-name">{{ row.name }}</div>
+            <div class="cell-sub mono">{{ truncate(row.operation_id, 26) }}</div>
+          </template>
+        </el-table-column>
+        <el-table-column label="方法" width="86">
+          <template #default="{ row }">
+            <span class="method-chip" :class="`method-chip--${row.method}`">{{ row.method }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="路径" min-width="140">
+          <template #default="{ row }">
+            <span class="mono cell-path" :title="row.path">{{ truncate(row.path, 30) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="期望" width="70" align="center">
+          <template #default="{ row }">
+            <span class="num">{{ row.expected_status }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="信任度" width="76" align="center">
+          <template #default="{ row }">
+            <span class="num">{{ row.trust_score }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="更新时间" width="128">
+          <template #default="{ row }">
+            <span class="mono num">{{ formatTime(row.updated_at) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="150" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="onConfirmDraft(row)">确认激活</el-button>
+            <RouterLink class="gen-draft__link" to="/cases">去用例页</RouterLink>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div v-if="!draftLoading && draftCases.length === 0" class="gen-draft__empty">
+        暂无草稿用例。触发生成后，LLM 产出的用例将在这里等待人工审核。
+      </div>
+    </section>
+  </div>
+</template>
+
+<style scoped lang="scss">
+.gen-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.gen-form,
+.gen-progress {
+  padding: 16px;
+}
+
+.gen-form__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.gen-form__title,
+.panel__title {
+  margin: 0;
+  font-size: 14px;
+  color: var(--tp-ink-900);
+}
+
+.gen-form__doc {
+  font-size: 12.5px;
+}
+
+.gen-form__row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.gen-form__ops {
+  flex: 1;
+}
+
+.gen-form__hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--tp-ink-400);
+  line-height: 1.6;
+}
+
+.gen-progress__empty {
+  padding: 32px 8px;
+  text-align: center;
+  color: var(--tp-ink-400);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.gen-progress__icon {
+  display: block;
+  font-size: 30px;
+  margin-bottom: 8px;
+  color: var(--tp-signal);
+}
+
+.gen-progress__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.gen-progress__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.gen-progress__label {
+  width: 72px;
+  flex-shrink: 0;
+  color: var(--tp-ink-400);
+}
+
+.gen-progress__wait {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--tp-running);
+}
+
+.gen-progress__pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tp-running);
+  animation: gen-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes gen-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.gen-result {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.gen-result__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 4px;
+  border: 1px solid var(--tp-line);
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--tp-ink-900);
+
+  .num.is-rejected {
+    color: var(--tp-failed);
+  }
+  .num.is-cost {
+    font-size: 13px;
+  }
+}
+
+.gen-result__item span:last-child {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--tp-ink-400);
+}
+
+.gen-rejected {
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: var(--tp-failed-soft);
+  border-radius: 8px;
+}
+
+.gen-rejected__title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tp-failed);
+}
+
+.gen-rejected__item {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--tp-ink-500);
+  margin-bottom: 2px;
+}
+
+.gen-rejected__item .mono {
+  color: var(--tp-ink-700);
+}
+
+.gen-draft {
+  overflow: hidden;
+}
+
+.panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+}
+
+.gen-draft__link {
+  font-size: 13px;
+  color: var(--tp-signal);
+  text-decoration: none;
+  margin-left: 8px;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.cell-name {
+  font-weight: 500;
+  color: var(--tp-ink-900);
+}
+
+.cell-sub {
+  font-size: 12px;
+  color: var(--tp-ink-400);
+}
+
+.cell-path {
+  font-size: 12.5px;
+  color: var(--tp-ink-500);
+}
+
+.gen-draft__empty {
+  padding: 28px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--tp-ink-400);
+}
+
+@media (max-width: 1080px) {
+  .gen-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
