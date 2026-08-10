@@ -1,0 +1,202 @@
+// ===== TestPlatform 设计系统：「接口信号台」 =====
+// 冷纸白底 + 墨蓝侧栏 + 铜色信号强调；HTTP 方法色卡为全局词汇。
+// 设计说明见 docs/plans/2026-08-10-frontend-phase1.md §3.4。
+// 覆盖 Element Plus 主题变量：导入顺序保证本文件在 element-plus/dist/index.css 之后。
+
+:root {
+  // ---- 中性色 ----
+  --tp-bg: #f5f7fa;
+  --tp-surface: #ffffff;
+  --tp-ink-900: #141b2b; // 侧栏/标题用最深墨蓝
+  --tp-ink-700: #2a3650; // 正文
+  --tp-ink-500: #4b5a74;
+  --tp-ink-400: #7b879c; // 次要文字
+  --tp-line: #e3e8ef;
+  --tp-line-strong: #cdd6e0;
+
+  // ---- 信号强调（示波器信号意象） ----
+  --tp-signal: #e0652f;
+  --tp-signal-soft: #fbeede;
+
+  // ---- 状态色（与 StatusTag 一致） ----
+  --tp-success: #1a9e68;
+  --tp-success-soft: #e6f4ee;
+  --tp-running: #3a7bd5;
+  --tp-running-soft: #e8f0fb;
+  --tp-failed: #d64550;
+  --tp-failed-soft: #fbeaeb;
+  --tp-pending: #94a3b8;
+  --tp-pending-soft: #eef1f5;
+
+  // ---- HTTP 方法色（Postman 生态通用认知） ----
+  --tp-method-get: #1a9e68;
+  --tp-method-post: #3a7bd5;
+  --tp-method-put: #d69a2d;
+  --tp-method-patch: #7c5cd6;
+  --tp-method-delete: #d64550;
+  --tp-method-other: #64748b;
+
+  // ---- 等宽数据字体（path/operation_id/run_id/时间戳） ----
+  --tp-font-mono: 'Cascadia Mono', 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+  --tp-font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC',
+    'Helvetica Neue', Arial, sans-serif;
+
+  // ---- 覆盖 Element Plus 主题变量 ----
+  --el-color-primary: var(--tp-signal);
+  --el-color-primary-light-3: #e8885b;
+  --el-color-primary-light-5: #eeaa87;
+  --el-color-primary-light-7: #f6cbb3;
+  --el-color-primary-light-8: #f9dccd;
+  --el-color-primary-light-9: var(--tp-signal-soft);
+  --el-color-primary-dark-2: #b85024;
+  --el-border-radius-base: 6px;
+  --el-font-family: var(--tp-font-ui);
+  --el-text-color-primary: var(--tp-ink-700);
+  --el-text-color-regular: var(--tp-ink-500);
+  --el-border-color: var(--tp-line);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--tp-font-ui);
+  font-size: 14px;
+  color: var(--tp-ink-700);
+  background: var(--tp-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// ---- 通用工具类 ----
+
+.mono {
+  font-family: var(--tp-font-mono);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.page {
+  padding: 24px;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.page__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--tp-ink-900);
+}
+
+.page__desc {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--tp-ink-400);
+}
+
+.panel {
+  background: var(--tp-surface);
+  border: 1px solid var(--tp-line);
+  border-radius: 10px;
+}
+
+.panel__body {
+  padding: 16px;
+}
+
+// ---- HTTP 方法色签（全局词汇） ----
+.method-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 54px;
+  padding: 2px 9px;
+  border-radius: 5px;
+  font-family: var(--tp-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: #fff;
+  line-height: 18px;
+
+  &--GET {
+    background: var(--tp-method-get);
+  }
+  &--POST {
+    background: var(--tp-method-post);
+  }
+  &--PUT {
+    background: var(--tp-method-put);
+  }
+  &--PATCH {
+    background: var(--tp-method-patch);
+  }
+  &--DELETE {
+    background: var(--tp-method-delete);
+  }
+  &--HEAD,
+  &--OPTIONS {
+    background: var(--tp-method-other);
+  }
+}
+
+// ---- 来源标签 ----
+.source-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--tp-ink-500);
+  background: var(--tp-pending-soft);
+  border: 1px solid var(--tp-line);
+
+  &--ai {
+    color: var(--tp-running);
+    background: var(--tp-running-soft);
+    border-color: #c6daf5;
+  }
+  &--swagger {
+    color: var(--tp-method-put);
+    background: #faf3e2;
+    border-color: #ecdcc0;
+  }
+}
+
+// ---- 表格统一微调 ----
+.el-table {
+  --el-table-header-bg-color: #f8fafc;
+  --el-table-header-text-color: var(--tp-ink-400);
+  --el-table-border-color: var(--tp-line);
+}
+
+// 尊重系统减弱动效偏好（运行状态脉冲 / 信号轨流动不打扰）
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
+  }
+}
