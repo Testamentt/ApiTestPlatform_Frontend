@@ -433,11 +433,17 @@ onBeforeUnmount(() => {
 }
 
 // ---- 下半区网格 ----
+// why：grid track 用 minmax(0, fr) + 子项 min-width:0 —— fr 默认等价 minmax(auto, 1fr)，
+// 内容（el-table）会被 auto 最小宽度撑开 track 造成横向无限延长（本 bug 根因）。
 .dash-grid {
   display: grid;
-  grid-template-columns: 1.7fr 1fr;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
+}
+
+.dash-grid > * {
+  min-width: 0;
 }
 
 .dash-side {

@@ -345,12 +345,17 @@ onBeforeUnmount(stopPolling)
 </template>
 
 <style scoped lang="scss">
+// why：同 dashboard grid —— minmax(0,fr)+子项 min-width:0 防止内容撑开 track
 .gen-grid {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
   margin-bottom: 16px;
+}
+
+.gen-grid > * {
+  min-width: 0;
 }
 
 .gen-form,
