@@ -51,22 +51,30 @@ async function loadStats(): Promise<void> {
   if (!userStore.token) return
   loading.value = true
   try {
-    const [draftPage, activePage, taskPage] = await Promise.all([
-      listCases({ status: 'draft', page_size: 1 }),
-      listCases({ status: 'active', page_size: 1 }),
-      listTasks({ page_size: 100 }),
-    ])
+    // why：统计口径按 status 分别取 total（review M7）——原先 page_size=100 拉全量会被截断，
+    // 任务数 >100 时分布/成功数错误；最近任务单独取前 5
+    const [draftPage, activePage, pendingPage, runningPage, successPage, failedPage, recentPage] =
+      await Promise.all([
+        listCases({ status: 'draft', page_size: 1 }),
+        listCases({ status: 'active', page_size: 1 }),
+        listTasks({ status: 'pending', page_size: 1 }),
+        listTasks({ status: 'running', page_size: 1 }),
+        listTasks({ status: 'success', page_size: 1 }),
+        listTasks({ status: 'failed', page_size: 1 }),
+        listTasks({ page_size: 5 }),
+      ])
     draftCount.value = draftPage.total
     activeCount.value = activePage.total
-    totalCount.value = taskPage.total
-    recentTasks.value = taskPage.items.slice(0, 5)
-
-    const dist: Record<TaskStatus, number> = { pending: 0, running: 0, success: 0, failed: 0 }
-    for (const task of taskPage.items) {
-      if (task.status in dist) dist[task.status as TaskStatus] += 1
+    totalCount.value =
+      pendingPage.total + runningPage.total + successPage.total + failedPage.total
+    recentTasks.value = recentPage.items
+    taskDist.value = {
+      pending: pendingPage.total,
+      running: runningPage.total,
+      success: successPage.total,
+      failed: failedPage.total,
     }
-    taskDist.value = dist
-    successCount.value = dist.success
+    successCount.value = successPage.total
   } catch {
     // why：错误已由 axios 拦截器统一提示（toast + 401 清 token 跳转），此处静默防重复打扰
   } finally {

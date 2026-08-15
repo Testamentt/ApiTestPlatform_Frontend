@@ -96,6 +96,7 @@ export interface Task {
   id: number
   run_id: string
   case_ids: number[]
+  timeout_seconds: number
   status: TaskStatus
   pid: number | null
   celery_task_id: string | null

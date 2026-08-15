@@ -101,6 +101,10 @@ async function openCreate(): Promise<void> {
     ElMessage.warning('暂无可执行的 active 用例，请先在「用例管理」审核激活')
     return
   }
+  // why：列表接口有 page_size 上限（review M5/M7），超过 100 个时明确提示而非静默截断
+  if (activeCases.value.length >= 100) {
+    ElMessage.info('active 用例超过 100 个，仅显示前 100，可先按需激活')
+  }
   selectedCaseIds.value = []
   timeoutSeconds.value = 300
   createVisible.value = true
