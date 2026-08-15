@@ -13,6 +13,15 @@ describe('formatDateTime', () => {
     expect(out).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
     expect(out).not.toContain('Z')
   })
+
+  it('后端 UTC naive 串（无时区标记）按 UTC 解析，不被当作本地时间（review M1）', () => {
+    // 同一时刻的 naive 串与 Z 串必须解析出相同本地时间；修复前 naive 串被当本地时间二次偏移
+    expect(formatDateTime('2024-01-02T03:04:05')).toBe(formatDateTime('2024-01-02T03:04:05Z'))
+    // 带偏移的串原样透传，不受补 Z 逻辑影响
+    expect(formatDateTime('2024-01-02T03:04:05+08:00')).toBe(
+      formatDateTime('2024-01-02T03:04:05+08:00'),
+    )
+  })
 })
 
 describe('formatTime', () => {
