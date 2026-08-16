@@ -67,5 +67,5 @@ src/
 
 - 统一响应 `{code, message, data}`；分页 `{items, total, page, page_size}`。
 - 业务端点 Bearer 鉴权；`/health` 免鉴权。
-- 任务/生成均异步 202 → 前端轮询至终态（状态以 DB 为单一事实源）。
-- 报告链接 `report_link` 为 `/static/reports/{id}/report.html`，经 Vite 代理同源打开。
+- 任务/生成均异步 202 → 前端轮询至终态（状态以 DB 为单一事实源）；失败任务同输入可重试（后端 Lookup-Create 修订）。
+- 报告链接 `report_link` 为 `/static/{task_id}/report.html`（后端 `/static` 只挂 `reports/` 目录），经 Vite 代理同源打开。

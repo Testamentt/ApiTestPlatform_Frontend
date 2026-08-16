@@ -12,7 +12,7 @@
 - 中文回复与文档；代码/标识符/路径保持英文（[[use-chinese-replies]]）。
 - 后端 Phase 4 已启用 Bearer Token 鉴权（除 `/health`）；dev token 默认 `testplatform-dev-token`（`security.api_token`）。
 - 后端 CORS 白名单默认空（不发 CORS 头）→ 前端 dev 必须走 **Vite 代理**（`/api`、`/static` → `127.0.0.1:8000`），不改后端。
-- API 契约（后端 `docs/api.md` + `app/schemas/*`）：统一响应 `{code, message, data}`；分页 `{items,total,page,page_size}`；状态枚举 draft/active/archived + pending/running/success/failed；`report_link=/static/reports/{id}/report.html`。
+- API 契约（后端 `docs/api.md` + `app/schemas/*`）：统一响应 `{code, message, data}`；分页 `{items,total,page,page_size}`；状态枚举 draft/active/archived + pending/running/success/failed；`report_link=/static/{task_id}/report.html`（后端 `/static` 只挂 `reports/`，2026-08-12 review H2 修订）。
 - 演示环境可能离线 → **不依赖网络字体/CDN**，用系统字体栈 + 等宽字体栈承载数据标识符。
 - R2 测试门禁：核心逻辑（store 持久化、axios 拦截器、守卫、状态标签）必须配单元测试。
 
