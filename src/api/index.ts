@@ -41,13 +41,14 @@ export function attachToken(config: InternalAxiosRequestConfig): InternalAxiosRe
 
 /** 响应解包：ApiResponse 取 data；health 等非包装响应原样透传。
  * why：后端所有业务端点包 {code, message, data}，只有 /health 直接返回裸对象，
- * 以"是否有 code 字段"区分，避免为单个端点再开一条裸通道。 */
-export function unwrapResponse(response: AxiosResponse): unknown {
+ * 以"是否有 code 字段"区分，避免为单个端点再开一条裸通道。
+ * 泛型 T 由调用方（request<T>）指定，消除拦截器里 AxiosResponse 双断言（review L9）。 */
+export function unwrapResponse<T = unknown>(response: AxiosResponse): T {
   const body = response.data
   if (body == null || typeof body !== 'object' || !('code' in body)) {
-    return body
+    return body as T
   }
-  const res = body as ApiResponse<unknown>
+  const res = body as ApiResponse<T>
   if (res.code !== 0) {
     throw new ApiRequestError(String(res.code), res.message || '接口返回异常')
   }
@@ -113,29 +114,35 @@ function extractCode(error: AxiosError): string | undefined {
 }
 
 http.interceptors.request.use(attachToken)
-// why：拦截器解包后返回的是业务 data（非 AxiosResponse），axios 运行时支持但类型未建模，
-// 双断言只为通过类型检查，调用方 apiGet<T> 已按业务类型断言。
+// 错误处理留在拦截器（跳转/toast/reject 单点）；成功解包收敛到 request<T>()——
+// why：拦截器内解包后返回非 AxiosResponse 需双断言 hack（review L9），
+// 移入类型化入口后 Promise<T> 由泛型推导，无任何类型断言。
 http.interceptors.response.use(
-  (response) => unwrapResponse(response) as unknown as AxiosResponse,
+  (response) => response,
   (error) => handleResponseError(error),
 )
 
 // ---------- 类型化请求快捷方法 ----------
 
+async function request<T>(config: AxiosRequestConfig): Promise<T> {
+  const response = await http.request<unknown>(config)
+  return unwrapResponse<T>(response)
+}
+
 export function apiGet<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-  return http.get(url, config) as Promise<T>
+  return request<T>({ ...config, method: 'GET', url })
 }
 
 export function apiPost<T>(url: string, data?: unknown): Promise<T> {
-  return http.post(url, data) as Promise<T>
+  return request<T>({ method: 'POST', url, data })
 }
 
 export function apiPut<T>(url: string, data?: unknown): Promise<T> {
-  return http.put(url, data) as Promise<T>
+  return request<T>({ method: 'PUT', url, data })
 }
 
 export function apiDelete<T = void>(url: string): Promise<T> {
-  return http.delete(url) as Promise<T>
+  return request<T>({ method: 'DELETE', url })
 }
 
 /** 健康检查（免鉴权，部署探针语义） */
