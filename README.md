@@ -2,7 +2,7 @@
 
 Vue 3 + TypeScript + Vite + Element Plus + Pinia + Vue Router 的独立前端工程（**独立 git 仓库**）。
 
-> 前后端分离：本仓库仅含前端；后端与项目文档/规则在 [backend](../backend) 仓库（FastAPI + Celery + AI + 项目规则 `.claude/rules/RULES.md`）。
+> 前后端分离：本仓库仅含前端；后端与项目文档/规则在 [backend](https://github.com/Testamentt/ApiTestPlatform_Backend) 仓库（FastAPI + Celery + AI + 项目规则 `.claude/rules/RULES.md`）。
 
 ## 技术栈
 
