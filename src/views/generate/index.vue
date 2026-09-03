@@ -26,6 +26,9 @@ function handleFileChange(file: UploadFile): void {
   reader.onload = () => {
     docText.value = String(reader.result ?? '')
   }
+  reader.onerror = () => {
+    ElMessage.error('文件读取失败，请重试或改用粘贴方式')
+  }
   reader.readAsText(raw)
 }
 
