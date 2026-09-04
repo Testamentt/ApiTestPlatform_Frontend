@@ -1,8 +1,28 @@
-# TestPlatform 前端（frontend/）
+<div align="center">
+  <h1>智能化接口测试效能平台 · 前端</h1>
 
-Vue 3 + TypeScript + Vite + Element Plus + Pinia + Vue Router 的独立前端工程（**独立 git 仓库**）。
+  <p>
+    <a href="https://github.com/Testamentt/ApiTestPlatform_Frontend/actions/workflows/ci.yml"><img src="https://github.com/Testamentt/ApiTestPlatform_Frontend/actions/workflows/ci.yml/badge.svg" alt="Frontend CI"></a>
+    <img src="https://img.shields.io/badge/Vue-3.5-42B883?style=flat-square&logo=vuedotjs&logoColor=white" alt="Vue 3">
+    <img src="https://img.shields.io/badge/TypeScript-5.8-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript">
+    <img src="https://img.shields.io/badge/Element%20Plus-2.9-409EFF?style=flat-square&logo=element&logoColor=white" alt="Element Plus">
+    <img src="https://img.shields.io/badge/Vite-6-646CFF?style=flat-square&logo=vite&logoColor=white" alt="Vite">
+    <img src="https://img.shields.io/badge/Vitest-3-729B1B?style=flat-square&logo=vitest&logoColor=white" alt="Vitest">
+    <img src="https://img.shields.io/badge/pnpm-10-F69220?style=flat-square&logo=pnpm&logoColor=white" alt="pnpm">
+  </p>
 
-> 前后端分离：本仓库仅含前端；后端与项目文档/规则在 [backend](https://github.com/Testamentt/ApiTestPlatform_Backend) 仓库（FastAPI + Celery + AI + 项目规则 `.claude/rules/RULES.md`）。
+  <p>后端平台的四页管理界面：<strong>仪表盘 / 用例管理 / 任务执行 / AI 生成</strong>，与后端 Bearer 鉴权、异步任务模型严格对齐。</p>
+</div>
+
+## 项目描述
+
+Vue 3 + TypeScript + Vite + Element Plus + Pinia 的接口测试平台前端（**独立 git 仓库**）：承接后端「生成 → 审核 → 执行 → 报告」闭环的可视化交互。后端仓库（简历主挂）：[ApiTestPlatform_Backend](https://github.com/Testamentt/ApiTestPlatform_Backend)。
+
+## 核心亮点
+
+- **四页闭环界面** — 仪表盘用例流水线信号轨（生成 → 审核 → 执行 → 成功）、用例管理 draft→active 人工审核、任务执行 2 s 轮询至终态 + HTML 报告抽屉、AI 生成 Swagger 导入 + 草稿审核。
+- **与后端契约零漂移** — 统一响应解包、Bearer token 注入、authGuard 路由守卫；类型镜像后端 Pydantic schema，vue-tsc 构建门禁。
+- **质量门禁对齐** — 41 个组件 / store 单测（Vitest + @vue/test-utils），独立 GitHub Actions CI。
 
 ## 技术栈
 
@@ -31,6 +51,8 @@ pnpm build          # vue-tsc 类型检查 + vite 构建 → dist/
   `testplatform-dev-token`（后端 dev 默认值），或写入本地 `.env` 的 `VITE_API_TOKEN`。
 - **后端前置**：需先启动后端（`uvicorn app.main:app --port 8000`）。dev 走 Vite 代理同源访问，
   不依赖后端 CORS 配置。
+- **被测系统**：任务执行/AI 生成演示需要后端侧被测服务（本地 mock：`python scripts/mock_target.py`；
+  或管伊佳 ERP）——见 [backend README「被测系统接入」](https://github.com/Testamentt/ApiTestPlatform_Backend#被测系统接入两种形态executionbase_url-切换)。
 
 ## 页面
 
@@ -69,3 +91,15 @@ src/
 - 业务端点 Bearer 鉴权；`/health` 免鉴权。
 - 任务/生成均异步 202 → 前端轮询至终态（状态以 DB 为单一事实源）；失败任务同输入可重试（后端 Lookup-Create 修订）。
 - 报告链接 `report_link` 为 `/static/{task_id}/report.html`（后端 `/static` 只挂 `reports/` 目录），经 Vite 代理同源打开。
+
+## 常见问题
+
+| 现象 | 处理方式 |
+| :--- | :--- |
+| 接口返回 401 / 403 | 顶栏「令牌」输入 `testplatform-dev-token`（后端 dev 默认），或写入本地 `.env` 的 `VITE_API_TOKEN` |
+| 页面空白 / 请求失败 | 先启动后端 `uvicorn app.main:app --port 8000`；dev 走 Vite 代理同源访问，不依赖后端 CORS |
+| `pnpm install` 报版本不符 | 项目锁定 `pnpm@10.6.5`（packageManager），先 `corepack enable` 或安装对应版本 |
+
+## 开源说明
+
+本项目为个人独立开发的技术作品，用于学习交流与面试展示；如需复用请先提 Issue 沟通。
