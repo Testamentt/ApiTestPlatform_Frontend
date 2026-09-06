@@ -72,6 +72,8 @@ export interface TestCase {
   status: CaseStatus
   source: CaseSource
   trust_score: number
+  /** 批准人（draft→active 时写入；内容变更降级后清空，review C3） */
+  reviewer?: string | null
   created_at: string
   updated_at: string
 }
@@ -178,7 +180,9 @@ export interface GenerateSummary {
   rejected?: number
   rejected_detail?: { operation_id: string; reason: string }[]
   skipped_by_filter?: number
-  skipped_detail?: unknown[]
+  skipped_detail?: string[]
+  /** 生成链路超时（review N13）：任务级预算耗尽时置 true，并留进度快照 */
+  timed_out?: boolean
   prompt_version?: string
   cost_total?: number
 }
