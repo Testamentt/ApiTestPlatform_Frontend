@@ -20,3 +20,13 @@ export function getTask(id: number): Promise<Task> {
 export function getTaskResults(id: number): Promise<TaskResults> {
   return apiGet<TaskResults>(`/tasks/${id}/results`)
 }
+
+/** 取消未开始的任务（仅 pending；后端 409 表示已被 Worker 领取） */
+export function cancelTask(id: number): Promise<Task> {
+  return apiPost<Task>(`/tasks/${id}/cancel`)
+}
+
+/** 人工重试失败任务（仅 failed；重置为 pending 并重新入队） */
+export function retryTask(id: number): Promise<Task> {
+  return apiPost<Task>(`/tasks/${id}/retry`)
+}
