@@ -2,8 +2,9 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 
-// why：dev 走 Vite 代理把 /api 与 /static 转发到后端。后端 CORS 白名单默认空（不发 CORS 头，
-// RULES §10.5 禁止 *），同源代理规避跨域；/static 用于打开测试 HTML 报告链接（report_link）。
+// why：dev 走 Vite 代理把 /api 与 /docs 转发到后端。后端 CORS 白名单默认空（不发 CORS 头，
+// RULES §10.5 禁止 *），同源代理规避跨域。报告不再走 /static（已摘除无鉴权静态面，review N3），
+// 改为带 Authorization 取 /api/v1/tasks/{id}/report 后本地 blob 打开。
 export default defineConfig({
   plugins: [vue()],
   resolve: {
@@ -15,7 +16,6 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
-      '/static': { target: 'http://127.0.0.1:8000', changeOrigin: true },
       '/docs': { target: 'http://127.0.0.1:8000', changeOrigin: true },
     },
   },
