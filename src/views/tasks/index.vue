@@ -1,11 +1,20 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { VideoPlay, Refresh } from '@element-plus/icons-vue'
-import { createTask, getTaskResults, listTasks } from '@/api/tasks'
+import { apiGet } from '@/api'
+import { cancelTask, createTask, getTaskResults, listTasks, retryTask } from '@/api/tasks'
 import { listCases } from '@/api/cases'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { formatDateTime, truncate } from '@/utils/format'
+import {
+  POLL_MAX_CONSECUTIVE_ERRORS,
+  POLL_MAX_DURATION_MS,
+  hasActiveTasks,
+  nextDelay,
+  shouldKeepPolling,
+  type PollDecisionReason,
+} from '@/utils/polling'
 import type { ListTasksParams, Task, TaskResultItem, TaskResults, TaskStatus, TestCase } from '@/types'
 
 // ---- 查询过滤 ----
@@ -25,24 +34,110 @@ const STATUS_OPTIONS: { label: string; value: TaskStatus }[] = [
   { label: '失败', value: 'failed' },
 ]
 
-// ---- 轮询：2s 间隔，仅当存在 pending/running 任务时保持（离开页面清理） ----
+// ---- 轮询治理（P2-2）：决策规则见 @/utils/polling，组件只做接线 ----
+// why：间隔随失败次数变化且需暂停/恢复，用 setTimeout 自我续期替代固定 setInterval
 let timer: number | undefined
+/** 本轮轮询会话起点；undefined 表示当前未在轮询 */
+let sessionStart: number | undefined
+/** 进入后台的时刻：用于把暂停时长还给会话预算 */
+let pausedAt: number | undefined
+let consecutiveErrors = 0
+/** 已被超时/退避护栏终止：等用户手动刷新再开新会话，避免切回页面就无限续命 */
+let autoStopped = false
+/** 列表上方提示条文案，'' 表示不显示 */
+const pollHint = ref('')
 
-function isActiveStatus(status: TaskStatus): boolean {
-  return status === 'pending' || status === 'running'
-}
-
-function ensurePolling(): void {
-  const hasActive = rows.value.some((t) => isActiveStatus(t.status))
-  if (hasActive && timer === undefined) {
-    timer = window.setInterval(() => void loadTasks(), 2000)
-  } else if (!hasActive && timer !== undefined) {
-    window.clearInterval(timer)
+function clearTimer(): void {
+  if (timer !== undefined) {
+    window.clearTimeout(timer)
     timer = undefined
   }
 }
 
-async function loadTasks(): Promise<void> {
+function stopPolling(): void {
+  clearTimer()
+  sessionStart = undefined
+  pausedAt = undefined
+}
+
+/** 页面不可见：只清掉待触发的定时器，保留会话（回前台继续，而非重新计时） */
+function pausePolling(): void {
+  clearTimer()
+  if (pausedAt === undefined) pausedAt = Date.now()
+}
+
+/** 回到前台：把后台停留时长补回会话起点，避免「后台挂 25 分钟，回来即被判定超时」 */
+function resumePolling(): void {
+  if (pausedAt !== undefined && sessionStart !== undefined) {
+    sessionStart += Date.now() - pausedAt
+  }
+  pausedAt = undefined
+}
+
+function scheduleNext(delayMs: number): void {
+  clearTimer()
+  timer = window.setTimeout(() => {
+    timer = undefined
+    void loadTasks()
+  }, delayMs)
+}
+
+function stopMessage(reason: PollDecisionReason): string {
+  if (reason === 'timeout') {
+    return `已轮询 ${POLL_MAX_DURATION_MS / 60_000} 分钟仍未结束，请点「刷新」查看最新状态`
+  }
+  return `连续 ${POLL_MAX_CONSECUTIVE_ERRORS} 次请求失败，请点「刷新」手动重试`
+}
+
+/** 提示条与弹窗共用同一套说法，避免两处文案各自漂移 */
+function updateHint(reason: PollDecisionReason, delayMs: number): void {
+  if (reason === 'inactive') pollHint.value = ''
+  else if (reason === 'hidden') pollHint.value = '页面已切到后台，自动刷新已暂停'
+  else if (reason === 'ok') pollHint.value = `有任务执行中，每 ${Math.round(delayMs / 1000)}s 自动刷新`
+  else pollHint.value = `自动刷新已停止：${stopMessage(reason)}`
+}
+
+function syncPolling(options: { manual?: boolean } = {}): void {
+  // why：手动刷新视为用户主动开一轮新会话——清零失败计数与终止标志，给后端一次干净的尝试
+  if (options.manual) {
+    autoStopped = false
+    consecutiveErrors = 0
+  }
+  if (!hasActiveTasks(rows.value)) {
+    stopPolling()
+    updateHint('inactive', 0)
+    return
+  }
+  if (autoStopped) return // 护栏已终止：保留提示，等用户手动刷新
+
+  if (sessionStart === undefined) sessionStart = Date.now()
+  const decision = shouldKeepPolling({
+    hasActive: true,
+    hidden: document.hidden,
+    elapsedMs: Date.now() - sessionStart,
+    consecutiveErrors,
+    maxMs: POLL_MAX_DURATION_MS,
+    maxErrors: POLL_MAX_CONSECUTIVE_ERRORS,
+  })
+  if (decision.keep) {
+    const delayMs = nextDelay(consecutiveErrors)
+    scheduleNext(delayMs)
+    updateHint('ok', delayMs)
+    return
+  }
+  if (decision.reason === 'hidden') {
+    pausePolling()
+    updateHint('hidden', 0)
+    return
+  }
+  stopPolling()
+  autoStopped = true
+  updateHint(decision.reason, 0)
+  ElMessage.warning(stopMessage(decision.reason))
+}
+
+/** manual：用户触发（搜索/分页/刷新/操作后）——允许重开被护栏停掉的会话并清零退避计数 */
+async function loadTasks(options: { manual?: boolean } = {}): Promise<void> {
   loading.value = true
   try {
     const params: ListTasksParams = { page: filter.page, page_size: filter.page_size }
@@ -50,28 +145,30 @@ async function loadTasks(): Promise<void> {
     const page = await listTasks(params)
     rows.value = page.items
     total.value = page.total
+    consecutiveErrors = 0 // 成功即复位退避间隔
   } catch {
-    // why：拦截器已提示
+    // why：拦截器已提示；此处只累计失败次数，供退避与止损判断
+    consecutiveErrors += 1
   } finally {
     loading.value = false
-    ensurePolling()
+    syncPolling(options)
   }
 }
 
 function onSearch(): void {
   filter.page = 1
-  void loadTasks()
+  void loadTasks({ manual: true })
 }
 
 function onPageChange(page: number): void {
   filter.page = page
-  void loadTasks()
+  void loadTasks({ manual: true })
 }
 
 function onSizeChange(size: number): void {
   filter.page_size = size
   filter.page = 1
-  void loadTasks()
+  void loadTasks({ manual: true })
 }
 
 async function refreshTask(row: Task): Promise<void> {
@@ -80,7 +177,7 @@ async function refreshTask(row: Task): Promise<void> {
     const index = rows.value.findIndex((t) => t.id === row.id)
     if (index >= 0) rows.value[index] = fresh.task
   }
-  await loadTasks()
+  await loadTasks({ manual: true })
 }
 
 // ---- 创建执行任务 ----
@@ -128,7 +225,7 @@ async function submitCreate(): Promise<void> {
     ElMessage.success(`任务已创建（#${task.id}），Lookup-Create 幂等：同输入返回同一任务`)
     createVisible.value = false
     filter.page = 1
-    await loadTasks()
+    await loadTasks({ manual: true })
     // 新建任务通常非终态，立即打开结果抽屉观察执行
     openDrawer(task)
   } catch {
@@ -176,13 +273,75 @@ function viewReport(task: Task): void {
     ElMessage.info('报告尚未生成（任务未成功或报告生成失败）')
     return
   }
-  // why：report_link 为后端 /static 相对路径，dev 经 Vite 代理同源访问
-  window.open(task.report_link, '_blank', 'noopener')
+  // why：review N3——报告改走带鉴权端点（后端已摘掉无鉴权 /static），window.open 无法带 Authorization 头，
+  // 故用 axios 取回 HTML 再以 blob 打开；baseURL 置空因为 report_link 已是完整绝对路径
+  void (async () => {
+    try {
+      const html = await apiGet<string>(task.report_link as string, { baseURL: '' })
+      const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+      window.open(url, '_blank', 'noopener')
+      // 交给浏览器加载后再释放，避免刚打开就失效
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch {
+      // why：拦截器已提示（401 会清 token 跳转；404 说明报告未生成）
+    }
+  })()
 }
 
-onMounted(() => void loadTasks())
+async function onCancel(row: Task): Promise<void> {
+  // why：RUNNING 取消会先杀掉 pytest 进程树（P2-3）——后果与排队期取消不同，文案要如实说明
+  const running = row.status === 'running'
+  try {
+    await ElMessageBox.confirm(
+      running
+        ? `确定取消正在执行的任务 #${row.id}？会立即终止其 pytest 进程，任务记为失败（cancelled），可再点「重试」重新执行。`
+        : `确定取消任务 #${row.id}？取消后状态为失败（cancelled），可再点「重试」重新执行。`,
+      '取消任务',
+      { type: 'warning', confirmButtonText: '取消任务', cancelButtonText: '再想想' },
+    )
+  } catch {
+    return // 用户放弃
+  }
+  try {
+    await cancelTask(row.id)
+    ElMessage.success(`任务 #${row.id} 已取消`)
+    await loadTasks({ manual: true })
+  } catch {
+    // why：并发下任务可能刚跑完 → 后端 409，拦截器已提示原因
+    await loadTasks({ manual: true })
+  }
+}
+
+async function onRetry(row: Task): Promise<void> {
+  try {
+    await retryTask(row.id)
+    ElMessage.success(`任务 #${row.id} 已重新入队`)
+    await loadTasks({ manual: true })
+  } catch {
+    // why：拦截器已提示（仅 failed 可重试）
+  }
+}
+
+// why：后台标签页照拉列表纯属浪费请求——隐藏即暂停，回前台立即补一次最新状态再按需续期
+function onVisibilityChange(): void {
+  if (document.hidden) {
+    if (sessionStart === undefined) return // 本来就没在轮询，无需改提示
+    pausePolling()
+    updateHint('hidden', 0)
+    return
+  }
+  resumePolling()
+  void loadTasks()
+}
+
+onMounted(() => {
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  void loadTasks({ manual: true })
+})
+
 onBeforeUnmount(() => {
-  if (timer) window.clearInterval(timer)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  stopPolling()
 })
 </script>
 
@@ -201,8 +360,8 @@ onBeforeUnmount(() => {
         <el-option v-for="opt in STATUS_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
       </el-select>
       <el-button :icon="Refresh" @click="onSearch">刷新</el-button>
-      <span v-if="rows.some((t) => t.status === 'pending' || t.status === 'running')" class="filters__hint">
-        <span class="filters__pulse" /> 有任务执行中，每 2s 自动刷新
+      <span v-if="pollHint" class="filters__hint">
+        <span class="filters__pulse" /> {{ pollHint }}
       </span>
     </section>
 
@@ -246,7 +405,7 @@ onBeforeUnmount(() => {
             <span class="mono num">{{ formatDateTime(row.finished_at) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="210" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDrawer(row)">结果</el-button>
             <el-button
@@ -258,6 +417,18 @@ onBeforeUnmount(() => {
               刷新
             </el-button>
             <el-button v-else link type="primary" @click="viewReport(row)">报告</el-button>
+            <!-- why：review N4 给 pending 孤儿出口；P2-3 起 running 也可取消（后端先杀 pytest 进程树） -->
+            <el-button
+              v-if="row.status === 'pending' || row.status === 'running'"
+              link
+              type="warning"
+              @click="onCancel(row)"
+            >
+              取消
+            </el-button>
+            <el-button v-if="row.status === 'failed'" link type="success" @click="onRetry(row)">
+              重试
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
