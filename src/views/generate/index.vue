@@ -70,26 +70,52 @@ function parseDocument(): Record<string, unknown> | null {
 // ---- 生成任务 + 轮询 ----
 const genTask = ref<GenerationTask | null>(null)
 let timer: number | undefined
+// why：review E1/E4——网络抖动不再一击停表，改为错误计数阈值（401 仍立即停）
+const POLL_ERROR_LIMIT = 5
+let errorStreak = 0
 
 const summary = computed<GenerateSummary>(
   () => (genTask.value?.result_summary as GenerateSummary | null) ?? {},
 )
 
+// why：review A1——跳过明细是"为什么一条都没生成"的唯一线索，前端必须展示出来
+const skippedDetail = computed<string[]>(() => summary.value.skipped_detail ?? [])
+
 function startPolling(taskId: number): void {
   stopPolling()
+  errorStreak = 0
   timer = window.setInterval(async () => {
     try {
       const task = await getGeneration(taskId)
+      errorStreak = 0
       genTask.value = task
       if (task.status === 'success' || task.status === 'failed') {
         stopPolling()
         if (task.status === 'success') {
-          ElMessage.success('用例生成完成，草稿已入库（防幻觉护栏：默认 draft）')
-          void loadDrafts()
+          // why：review A1——"0 草稿"不是成功观感：全部被跳过/拒绝时必须给 warning + 指向明细，
+          // 否则用户看到绿色提示以为用例已入库
+          const created = (task.result_summary as GenerateSummary | null)?.draft_created ?? 0
+          if (created > 0) {
+            ElMessage.success(`用例生成完成：新增 ${created} 条草稿（防幻觉护栏：默认 draft）`)
+            void loadDrafts()
+          } else {
+            ElMessage.warning('生成任务结束但未产生任何草稿用例，请查看下方"跳过/被拒明细"')
+          }
         }
       }
-    } catch {
-      stopPolling()
+    } catch (error) {
+      // why：review E1——此前任何一次网络抖动都会永久停表（任务在跑却看不到结果）；
+      // 现改为错误计数 + 阈值：401/403（拦截器已清 token 并跳转）立即停，网络错误重试到上限
+      const code = (error as { code?: string }).code
+      if (code === 'AUTH_REQUIRED' || code === 'AUTH_INVALID') {
+        stopPolling()
+        return
+      }
+      errorStreak += 1
+      if (errorStreak >= POLL_ERROR_LIMIT) {
+        stopPolling()
+        ElMessage.error(`连续 ${POLL_ERROR_LIMIT} 次获取任务状态失败，已停止轮询（可点「刷新进度」恢复）`)
+      }
     }
   }, 2000)
 }
@@ -102,6 +128,11 @@ function stopPolling(): void {
 function resetGeneration(): void {
   stopPolling()
   genTask.value = null
+}
+
+/** why：review E1——停表后（或刷新页面后）必须能手动恢复观察，否则任务在跑也无从得知 */
+function resumePolling(): void {
+  if (genTask.value) startPolling(genTask.value.id)
 }
 
 async function submitGenerate(): Promise<void> {
@@ -265,10 +296,17 @@ onBeforeUnmount(stopPolling)
               </div>
             </div>
             <div v-if="summary.rejected_detail && summary.rejected_detail.length" class="gen-rejected">
-              <p class="gen-rejected__title">被拒详情（schema 校验失败）</p>
+              <p class="gen-rejected__title">被拒详情（schema 校验失败 / LLM 失败 / 敏感扫描拦截）</p>
               <div v-for="item in summary.rejected_detail" :key="item.operation_id" class="gen-rejected__item">
                 <span class="mono">{{ item.operation_id }}</span>
                 <span>{{ item.reason }}</span>
+              </div>
+            </div>
+            <!-- why：review A1——定向未命中的 operation_id 必须逐条可见，否则"全部跳过仍成功"看不到原因 -->
+            <div v-if="skippedDetail.length" class="gen-rejected gen-rejected--skipped">
+              <p class="gen-rejected__title">定向跳过详情（operation_id 不在文档中）</p>
+              <div v-for="(detail, index) in skippedDetail" :key="index" class="gen-rejected__item">
+                <span>{{ detail }}</span>
               </div>
             </div>
           </template>
@@ -285,6 +323,7 @@ onBeforeUnmount(stopPolling)
           <div v-if="genTask.status === 'running' || genTask.status === 'pending'" class="gen-progress__wait">
             <span class="gen-progress__pulse" />
             {{ genTask.status === 'pending' ? '排队中…' : 'LLM 生成中（约 30-60s）…' }}
+            <el-button link type="primary" size="small" @click="resumePolling">刷新进度</el-button>
           </div>
         </template>
       </section>
@@ -502,6 +541,10 @@ onBeforeUnmount(stopPolling)
   padding: 10px 12px;
   background: var(--tp-failed-soft);
   border-radius: 8px;
+}
+
+.gen-rejected--skipped {
+  background: var(--tp-pending-soft);
 }
 
 .gen-rejected__title {
