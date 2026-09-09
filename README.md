@@ -14,22 +14,22 @@
   <p>后端平台的四页管理界面：<strong>仪表盘 / 用例管理 / 任务执行 / AI 生成</strong>，与后端 Bearer 鉴权、异步任务模型严格对齐。</p>
 </div>
 
-## 项目描述
+## 1. 项目描述
 
 Vue 3 + TypeScript + Vite + Element Plus + Pinia 的接口测试平台前端（**独立 git 仓库**）：承接后端「生成 → 审核 → 执行 → 报告」闭环的可视化交互。后端仓库（简历主挂）：[ApiTestPlatform_Backend](https://github.com/Testamentt/ApiTestPlatform_Backend)。
 
-## 核心亮点
+## 2. 核心亮点
 
-- **四页闭环界面** — 仪表盘用例流水线信号轨（生成 → 审核 → 执行 → 成功）、用例管理 draft→active 人工审核、任务执行 2 s 轮询至终态 + HTML 报告抽屉、AI 生成 Swagger 导入 + 草稿审核。
+- **四页闭环界面** — 仪表盘用例流水线信号轨（生成 → 审核 → 执行 → 成功）、用例管理 draft→active 人工审核、任务执行轮询至终态（可见性暂停 + 错误退避 + 时长上限）+ HTML 报告抽屉、AI 生成 Swagger 导入 + 草稿审核。
 - **与后端契约零漂移** — 统一响应解包、Bearer token 注入、authGuard 路由守卫；类型镜像后端 Pydantic schema，vue-tsc 构建门禁。
-- **质量门禁对齐** — 41 个组件 / store 单测（Vitest + @vue/test-utils），独立 GitHub Actions CI。
+- **质量门禁对齐** — 64 个组件 / store / 工具 / API 契约单测（Vitest + @vue/test-utils），独立 GitHub Actions CI。
 
-## 技术栈
+## 3. 技术栈
 
 | 类别 | 技术 | 版本 |
-|---|---|---|
+| :--- | :--- | :--- |
 | 框架 | Vue 3 | ^3.5 |
-| 构建 | Vite | ^6.4 |
+| 构建 | Vite | ^6.2.4（lockfile 解析到 6.4.x） |
 | UI | Element Plus | ^2.9（全量引入） |
 | 状态 | Pinia | ^3.0 |
 | 路由 | Vue Router | ^4.5 |
@@ -38,11 +38,11 @@ Vue 3 + TypeScript + Vite + Element Plus + Pinia 的接口测试平台前端（*
 
 包管理 **pnpm**（`packageManager: pnpm@10.6.5`）。
 
-## 快速启动
+## 4. 快速启动
 
 ```bash
 pnpm install
-pnpm dev            # http://localhost:5173（/api、/static、/docs 代理到后端 8000）
+pnpm dev            # http://localhost:5173（/api、/docs 代理到后端 8000）
 pnpm test           # 单元测试门禁
 pnpm build          # vue-tsc 类型检查 + vite 构建 → dist/
 ```
@@ -54,18 +54,18 @@ pnpm build          # vue-tsc 类型检查 + vite 构建 → dist/
 - **被测系统**：任务执行/AI 生成演示需要后端侧被测服务（本地 mock：`python scripts/mock_target.py`；
   或管伊佳 ERP）——见 [backend README「被测系统接入」](https://github.com/Testamentt/ApiTestPlatform_Backend#被测系统接入两种形态executionbase_url-切换)。
 
-## 页面
+## 5. 页面
 
 | 路由 | 页面 | 说明 |
-|---|---|---|
+| :--- | :--- | :--- |
 | `/dashboard` | 仪表盘 | 用例流水线信号轨（生成→审核→执行→成功）、最近任务、任务状态分布、后端健康 |
 | `/cases` | 用例管理 | CRUD + 人工审核 confirm（draft→active，防幻觉护栏） |
-| `/tasks` | 任务执行 | 选定 active 用例异步执行，2s 轮询至终态，结果抽屉 + HTML 报告 |
-| `/generate` | AI 生成 | 粘贴/上传 Swagger 文档 → LLM 生成（Celery 异步），草稿列表 + 审核激活 |
+| `/tasks` | 任务执行 | 选定 active 用例异步执行，轮询至终态（可见性暂停 / 错误退避 / 30 min 上限），结果抽屉 + 带鉴权报告；`pending` 与 `running` 均可取消、`failed` 可重试 |
+| `/generate` | AI 生成 | 粘贴/上传 Swagger 文档 → LLM 生成（Celery 异步），草稿列表 + 审核激活；0 草稿时给 warning 并展示「跳过/被拒明细」 |
 
-## 目录结构
+## 6. 目录结构
 
-```
+```text
 src/
 ├── api/          # axios 封装（token 注入、响应解包、错误分类）+ cases/tasks/generate
 ├── stores/       # Pinia：user（token 持久化 localStorage）
@@ -78,21 +78,23 @@ src/
 └── test/         # vitest 全局 setup
 ```
 
-## 设计系统：「接口信号台」
+## 7. 设计系统：「接口信号台」
 
 - 冷纸白底 `#f5f7fa` + 墨蓝侧栏 `#141b2b` + 铜色信号强调 `#e0652f`（示波器信号意象）。
 - HTTP 方法色卡（GET/POST/PUT/PATCH/DELETE）与状态圆点（草稿/激活/排队/执行/成功/失败）为全局词汇。
 - 等宽字体承载 path / operation_id / run_id / 时间戳；不依赖网络字体，演示可离线。
 - 详细设计决策见 [docs/plans/2026-08-10-frontend-phase1.md](docs/plans/2026-08-10-frontend-phase1.md)。
 
-## 与后端契约（镜像 docs/api.md）
+## 8. 与后端契约（镜像 docs/api.md）
 
 - 统一响应 `{code, message, data}`；分页 `{items, total, page, page_size}`。
 - 业务端点 Bearer 鉴权；`/health` 免鉴权。
 - 任务/生成均异步 202 → 前端轮询至终态（状态以 DB 为单一事实源）；失败任务同输入可重试（后端 Lookup-Create 修订）。
-- 报告链接 `report_link` 为 `/static/{task_id}/report.html`（后端 `/static` 只挂 `reports/` 目录），经 Vite 代理同源打开。
+- 报告链接 `report_link` 为 `/api/v1/tasks/{task_id}/report`（**带鉴权**读取报告原文，后端无鉴权 `/static` 面已摘除）；前端用 axios 带 token 取回 HTML 后以 blob 新标签打开（`window.open` 无法携带 Authorization 头）。
+- 任务操作：`pending` 与 `running` 均可取消（`POST /tasks/{id}/cancel`；后端对 `running` 会先杀 pytest 进程树，前端确认框文案随之区分）、`failed` 可人工重试（`POST /tasks/{id}/retry`）；用例 `active` 后内容一旦变更会被后端降级回 `draft`（语义闸），界面提示需重新审核。
+- 列表轮询策略（`src/utils/polling.ts` 纯函数，可单测）：基准 2 s；页面隐藏即暂停、回到前台立即刷新一次；连续失败按 2 s→4 s→…→30 s 退避，达 5 次停止并提示手动刷新；单次会话最长 30 min（只累计可见时间）。
 
-## 常见问题
+## 9. 常见问题
 
 | 现象 | 处理方式 |
 | :--- | :--- |
@@ -100,6 +102,13 @@ src/
 | 页面空白 / 请求失败 | 先启动后端 `uvicorn app.main:app --port 8000`；dev 走 Vite 代理同源访问，不依赖后端 CORS |
 | `pnpm install` 报版本不符 | 项目锁定 `pnpm@10.6.5`（packageManager），先 `corepack enable` 或安装对应版本 |
 
-## 开源说明
+## 10. 开源说明
 
 本项目为个人独立开发的技术作品，用于学习交流与面试展示；如需复用请先提 Issue 沟通。
+
+## 11. 相关文档
+
+- 后端项目入口：[ApiTestPlatform_Backend README](https://github.com/Testamentt/ApiTestPlatform_Backend)
+- 后端接口契约：`docs/api.md`（端点总表 + 错误码表）
+- 学习版镜像：`docs-study/TestPlatform/frontend/README.md`
+
