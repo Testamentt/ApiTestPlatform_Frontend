@@ -110,5 +110,5 @@ src/
 
 - 后端项目入口：[ApiTestPlatform_Backend README](https://github.com/Testamentt/ApiTestPlatform_Backend)
 - 后端接口契约：`docs/api.md`（端点总表 + 错误码表）
-- 学习版镜像：`docs-study/TestPlatform/frontend/README.md`
+- 学习版镜像：`E:\Project\docs-study\TestPlatform\frontend\README.md`
 
