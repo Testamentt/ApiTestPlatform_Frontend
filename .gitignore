@@ -10,6 +10,8 @@ dist/
 # 构建产物
 *.tsbuildinfo
 coverage/
+# 测试报告产物（CI 的 junit 输出；本地跑 pnpm test:ci 也会落盘）
+reports/
 
 # 日志
 logs/
@@ -19,3 +21,8 @@ logs/
 .idea/
 .vscode/
 *.swp
+
+# 过程记录（计划 / 会话沉淀 / 评审）：本地归档，不入库
+docs/plans/
+docs/sessions/
+docs/reviews/
