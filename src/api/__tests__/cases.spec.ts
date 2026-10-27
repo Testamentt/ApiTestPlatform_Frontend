@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 // why：验证 cases API 模块的端点契约（URL + 方法 + 参数），用 mock 替换 api/index 快捷方法，
-// 不发起真实网络请求（对应 RULES §11.1：测试禁止真调外部服务）。
+// 不发起真实网络请求（单测不依赖外部服务）。
 vi.mock('@/api/index', () => ({
   apiGet: vi.fn(),
   apiPost: vi.fn(),

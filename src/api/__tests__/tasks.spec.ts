@@ -27,12 +27,12 @@ describe('tasks API 端点契约', () => {
     expect(apiGet).toHaveBeenCalledWith('/tasks/7/results')
   })
 
-  it('cancelTask POST /tasks/{id}/cancel（pending 孤儿的出口，review N4）', () => {
+  it('cancelTask POST /tasks/{id}/cancel（pending 孤儿的出口）', () => {
     cancelTask(7)
     expect(apiPost).toHaveBeenCalledWith('/tasks/7/cancel')
   })
 
-  it('retryTask POST /tasks/{id}/retry（失败任务人工重跑，review N4）', () => {
+  it('retryTask POST /tasks/{id}/retry（失败任务人工重跑）', () => {
     retryTask(7)
     expect(apiPost).toHaveBeenCalledWith('/tasks/7/retry')
   })

@@ -1,5 +1,5 @@
 // Axios 统一封装。why：鉴权注入、响应解包、错误分类收敛到单一边界，
-// 业务代码不裸调 axios（对应后端 RULES §9.1 的"统一封装"思想，面试防守点）。
+// 业务代码不裸调 axios（统一封装，收敛鉴权、解包与错误处理）。
 import axios, {
   AxiosError,
   type AxiosInstance,
@@ -42,7 +42,7 @@ export function attachToken(config: InternalAxiosRequestConfig): InternalAxiosRe
 /** 响应解包：ApiResponse 取 data；health 等非包装响应原样透传。
  * why：后端所有业务端点包 {code, message, data}，只有 /health 直接返回裸对象，
  * 以"是否有 code 字段"区分，避免为单个端点再开一条裸通道。
- * 泛型 T 由调用方（request<T>）指定，消除拦截器里 AxiosResponse 双断言（review L9）。 */
+ * 泛型 T 由调用方（request<T>）指定，消除拦截器里 AxiosResponse 双断言。 */
 export function unwrapResponse<T = unknown>(response: AxiosResponse): T {
   const body = response.data
   if (body == null || typeof body !== 'object' || !('code' in body)) {
@@ -115,7 +115,7 @@ function extractCode(error: AxiosError): string | undefined {
 
 http.interceptors.request.use(attachToken)
 // 错误处理留在拦截器（跳转/toast/reject 单点）；成功解包收敛到 request<T>()——
-// why：拦截器内解包后返回非 AxiosResponse 需双断言 hack（review L9），
+// why：拦截器内解包后返回非 AxiosResponse 需双断言 hack，
 // 移入类型化入口后 Promise<T> 由泛型推导，无任何类型断言。
 http.interceptors.response.use(
   (response) => response,

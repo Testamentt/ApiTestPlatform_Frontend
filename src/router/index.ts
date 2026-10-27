@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory, type RouteLocationNormalized, type RouteLocationRaw, type RouteRecordRaw } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 
-// why：MVP 无登录页（RULES §10.3 面试导向），全部业务路由 requiresToken；
+// why：MVP 无登录页，全部业务路由 requiresToken；
 // 仪表盘免 token（/health 公开，且承担"配置令牌"落地页职责）。
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/dashboard' },

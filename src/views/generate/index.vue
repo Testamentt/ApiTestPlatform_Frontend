@@ -10,7 +10,7 @@ import StatusTag from '@/components/common/StatusTag.vue'
 import { formatTime, truncate } from '@/utils/format'
 import type { GenerateSummary, GenerationTask, TestCase } from '@/types'
 
-// 与后端 swagger.max_upload_bytes 一致的前端预检上限（RULES §2.3：来自配置契约，此处镜像）
+// 与后端 swagger.max_upload_bytes 一致的前端预检上限（此处镜像后端配置契约）
 const MAX_DOC_BYTES = 2_000_000
 
 // ---- Swagger 文档输入 ----
@@ -70,7 +70,7 @@ function parseDocument(): Record<string, unknown> | null {
 // ---- 生成任务 + 轮询 ----
 const genTask = ref<GenerationTask | null>(null)
 let timer: number | undefined
-// why：review E1/E4——网络抖动不再一击停表，改为错误计数阈值（401 仍立即停）
+// why：网络抖动不再一击停表，改为错误计数阈值（401 仍立即停）
 const POLL_ERROR_LIMIT = 5
 let errorStreak = 0
 
@@ -78,7 +78,7 @@ const summary = computed<GenerateSummary>(
   () => (genTask.value?.result_summary as GenerateSummary | null) ?? {},
 )
 
-// why：review A1——跳过明细是"为什么一条都没生成"的唯一线索，前端必须展示出来
+// why：跳过明细是"为什么一条都没生成"的唯一线索，前端必须展示出来
 const skippedDetail = computed<string[]>(() => summary.value.skipped_detail ?? [])
 
 function startPolling(taskId: number): void {
@@ -92,7 +92,7 @@ function startPolling(taskId: number): void {
       if (task.status === 'success' || task.status === 'failed') {
         stopPolling()
         if (task.status === 'success') {
-          // why：review A1——"0 草稿"不是成功观感：全部被跳过/拒绝时必须给 warning + 指向明细，
+          // why："0 草稿"不是成功观感：全部被跳过/拒绝时必须给 warning + 指向明细，
           // 否则用户看到绿色提示以为用例已入库
           const created = (task.result_summary as GenerateSummary | null)?.draft_created ?? 0
           if (created > 0) {
@@ -104,7 +104,7 @@ function startPolling(taskId: number): void {
         }
       }
     } catch (error) {
-      // why：review E1——此前任何一次网络抖动都会永久停表（任务在跑却看不到结果）；
+      // why：此前任何一次网络抖动都会永久停表（任务在跑却看不到结果）；
       // 现改为错误计数 + 阈值：401/403（拦截器已清 token 并跳转）立即停，网络错误重试到上限
       const code = (error as { code?: string }).code
       if (code === 'AUTH_REQUIRED' || code === 'AUTH_INVALID') {
@@ -130,7 +130,7 @@ function resetGeneration(): void {
   genTask.value = null
 }
 
-/** why：review E1——停表后（或刷新页面后）必须能手动恢复观察，否则任务在跑也无从得知 */
+/** why：停表后（或刷新页面后）必须能手动恢复观察，否则任务在跑也无从得知 */
 function resumePolling(): void {
   if (genTask.value) startPolling(genTask.value.id)
 }
@@ -302,7 +302,7 @@ onBeforeUnmount(stopPolling)
                 <span>{{ item.reason }}</span>
               </div>
             </div>
-            <!-- why：review A1——定向未命中的 operation_id 必须逐条可见，否则"全部跳过仍成功"看不到原因 -->
+            <!-- why：定向未命中的 operation_id 必须逐条可见，否则"全部跳过仍成功"看不到原因 -->
             <div v-if="skippedDetail.length" class="gen-rejected gen-rejected--skipped">
               <p class="gen-rejected__title">定向跳过详情（operation_id 不在文档中）</p>
               <div v-for="(detail, index) in skippedDetail" :key="index" class="gen-rejected__item">

@@ -1,5 +1,5 @@
 // 全局类型：镜像后端 Pydantic schema（backend/app/schemas/*）。
-// why：前后端契约单一来源在后端；前端按需抽取，避免 any 裸奔（面试防守点）。
+// why：前后端契约单一来源在后端；前端按需抽取，避免 any 裸奔。
 
 /** 统一成功响应包装：{code, message, data} */
 export interface ApiResponse<T> {
@@ -72,7 +72,7 @@ export interface TestCase {
   status: CaseStatus
   source: CaseSource
   trust_score: number
-  /** 批准人（draft→active 时写入；内容变更降级后清空，review C3） */
+  /** 批准人（draft→active 时写入；内容变更降级后清空） */
   reviewer?: string | null
   created_at: string
   updated_at: string
@@ -181,7 +181,7 @@ export interface GenerateSummary {
   rejected_detail?: { operation_id: string; reason: string }[]
   skipped_by_filter?: number
   skipped_detail?: string[]
-  /** 生成链路超时（review N13）：任务级预算耗尽时置 true，并留进度快照 */
+  /** 生成链路超时：任务级预算耗尽时置 true，并留进度快照 */
   timed_out?: boolean
   prompt_version?: string
   cost_total?: number

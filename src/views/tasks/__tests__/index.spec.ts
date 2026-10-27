@@ -86,7 +86,7 @@ function fireVisibilityChange(): void {
   document.dispatchEvent(new Event('visibilitychange'))
 }
 
-describe('任务列表轮询接线（P2-2）', () => {
+describe('任务列表轮询接线', () => {
   let wrapper: ReturnType<typeof mount> | undefined
 
   function mountView(): ReturnType<typeof mount> {

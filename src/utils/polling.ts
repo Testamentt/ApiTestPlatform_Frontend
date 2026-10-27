@@ -1,4 +1,4 @@
-// 列表轮询治理（P2-2）：可见性暂停、错误退避、会话超时、按状态收敛请求。
+// 列表轮询治理：可见性暂停、错误退避、会话超时、按状态收敛请求。
 // why：这些规则一旦写进组件就只能靠「跑起来看」，抽成纯函数后可以逐条断言，
 // 组件里只留副作用（setTimeout / 提示），规则本身不再依赖 DOM 与 Vue。
 import type { TaskStatus } from '@/types'
@@ -71,7 +71,7 @@ export function shouldKeepPolling(input: PollGateInput): PollGateResult {
   return { keep: true, reason: 'ok' }
 }
 
-/** 非终态任务才会变，终态任务再拉也是浪费请求（P2-2 请求放大收敛） */
+/** 非终态任务才会变，终态任务再拉也是浪费请求 */
 export function isActiveStatus(status: TaskStatus): boolean {
   return status === 'pending' || status === 'running'
 }

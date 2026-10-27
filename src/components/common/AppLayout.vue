@@ -167,7 +167,7 @@ function openApiDocs(): void {
   <el-dialog v-model="tokenDialogVisible" title="访问令牌" width="440px">
     <div class="token-dialog">
       <p class="token-dialog__desc">
-        后端已启用 Bearer Token 鉴权（RULES §10.3）。令牌对应后端 <span class="mono">security.api_token</span>，
+        后端已启用 Bearer Token 鉴权。令牌对应后端 <span class="mono">security.api_token</span>，
         本地 dev 默认 <span class="mono">testplatform-dev-token</span>。
       </p>
       <el-input

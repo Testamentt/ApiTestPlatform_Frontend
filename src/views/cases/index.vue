@@ -166,7 +166,7 @@ async function submitForm(): Promise<void> {
       await createCase(payload)
       ElMessage.success('用例已创建（draft）')
     } else {
-      // why：先记录原状态——active 用例被语义闸降级时要给出准确反馈（review C3）
+      // why：先记录原状态——active 用例被语义闸降级时要给出准确反馈
       const wasActive = rows.value.find((item) => item.id === editingId.value)?.status === 'active'
       const payload: CaseUpdate = {
         name: form.name.trim(),
@@ -178,7 +178,7 @@ async function submitForm(): Promise<void> {
         body,
       }
       await updateCase(editingId.value, payload)
-      // why：后端语义闸（review C3）——active 用例内容一变即降级 draft 重新审核，
+      // why：后端语义闸——active 用例内容一变即降级 draft 重新审核，
       // 界面必须如实告知，否则用户以为还在执行池里
       if (wasActive) {
         ElMessage.warning('用例已更新，内容变更已降级为 draft，需重新审核激活')

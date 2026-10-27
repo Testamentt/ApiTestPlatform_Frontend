@@ -34,7 +34,7 @@ const STATUS_OPTIONS: { label: string; value: TaskStatus }[] = [
   { label: '失败', value: 'failed' },
 ]
 
-// ---- 轮询治理（P2-2）：决策规则见 @/utils/polling，组件只做接线 ----
+// ---- 轮询治理：决策规则见 @/utils/polling，组件只做接线 ----
 // why：间隔随失败次数变化且需暂停/恢复，用 setTimeout 自我续期替代固定 setInterval
 let timer: number | undefined
 /** 本轮轮询会话起点；undefined 表示当前未在轮询 */
@@ -198,7 +198,7 @@ async function openCreate(): Promise<void> {
     ElMessage.warning('暂无可执行的 active 用例，请先在「用例管理」审核激活')
     return
   }
-  // why：列表接口有 page_size 上限（review M5/M7），超过 100 个时明确提示而非静默截断
+  // why：列表接口有 page_size 上限，超过 100 个时明确提示而非静默截断
   if (activeCases.value.length >= 100) {
     ElMessage.info('active 用例超过 100 个，仅显示前 100，可先按需激活')
   }
@@ -273,7 +273,7 @@ function viewReport(task: Task): void {
     ElMessage.info('报告尚未生成（任务未成功或报告生成失败）')
     return
   }
-  // why：review N3——报告改走带鉴权端点（后端已摘掉无鉴权 /static），window.open 无法带 Authorization 头，
+  // why：报告改走带鉴权端点（后端已摘掉无鉴权 /static），window.open 无法带 Authorization 头，
   // 故用 axios 取回 HTML 再以 blob 打开；baseURL 置空因为 report_link 已是完整绝对路径
   void (async () => {
     try {
@@ -289,7 +289,7 @@ function viewReport(task: Task): void {
 }
 
 async function onCancel(row: Task): Promise<void> {
-  // why：RUNNING 取消会先杀掉 pytest 进程树（P2-3）——后果与排队期取消不同，文案要如实说明
+  // why：RUNNING 取消会先杀掉 pytest 进程树——后果与排队期取消不同，文案要如实说明
   const running = row.status === 'running'
   try {
     await ElMessageBox.confirm(
@@ -417,7 +417,7 @@ onBeforeUnmount(() => {
               刷新
             </el-button>
             <el-button v-else link type="primary" @click="viewReport(row)">报告</el-button>
-            <!-- why：review N4 给 pending 孤儿出口；P2-3 起 running 也可取消（后端先杀 pytest 进程树） -->
+            <!-- why：给 pending 孤儿出口；running 也可取消（后端先杀 pytest 进程树） -->
             <el-button
               v-if="row.status === 'pending' || row.status === 'running'"
               link

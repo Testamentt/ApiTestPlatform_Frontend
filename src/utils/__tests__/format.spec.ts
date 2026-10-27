@@ -14,7 +14,7 @@ describe('formatDateTime', () => {
     expect(out).not.toContain('Z')
   })
 
-  it('后端 UTC naive 串（无时区标记）按 UTC 解析，不被当作本地时间（review M1）', () => {
+  it('后端 UTC naive 串（无时区标记）按 UTC 解析，不被当作本地时间', () => {
     // 同一时刻的 naive 串与 Z 串必须解析出相同本地时间；修复前 naive 串被当本地时间二次偏移
     expect(formatDateTime('2024-01-02T03:04:05')).toBe(formatDateTime('2024-01-02T03:04:05Z'))
     // 带偏移的串原样透传，不受补 Z 逻辑影响

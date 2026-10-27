@@ -51,7 +51,7 @@ async function loadStats(): Promise<void> {
   if (!userStore.token) return
   loading.value = true
   try {
-    // why：统计口径按 status 分别取 total（review M7）——原先 page_size=100 拉全量会被截断，
+    // why：统计口径按 status 分别取 total——原先 page_size=100 拉全量会被截断，
     // 任务数 >100 时分布/成功数错误；最近任务单独取前 5
     const [draftPage, activePage, pendingPage, runningPage, successPage, failedPage, recentPage] =
       await Promise.all([
