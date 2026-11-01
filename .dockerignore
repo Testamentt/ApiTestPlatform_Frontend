@@ -1,0 +1,16 @@
+# 前端构建上下文排除项：镜像只需源码与依赖清单，产物/依赖/本地环境不入镜像
+node_modules
+dist
+reports
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+coverage
+.vscode
+.idea
+Dockerfile
+docker-compose.yml
