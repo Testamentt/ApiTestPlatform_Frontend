@@ -9,6 +9,7 @@
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:ci": "vitest run --reporter=default --reporter=junit --outputFile=reports/junit.xml",
     "test:watch": "vitest"
   },
   "dependencies": {

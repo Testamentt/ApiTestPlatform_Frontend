@@ -1,11 +1,17 @@
-# 前端 CI 门禁（review L10）：类型检查 + 单测 + 构建产物验证。
-# frontend 为独立仓库（pnpm workspace root），与后端 CI（backend/.github/workflows/ci.yml）互不阻塞。
+# 前端 CI 门禁：类型检查 + 单测 + 构建产物验证。
+# frontend 为独立仓库（pnpm workspace root），与后端仓库 CI 互不阻塞。
 name: Frontend CI
 
 on:
   push:
     branches: [master]
   pull_request:
+
+# 测试结果发布走 Checks / PR 注释，需显式授予写权限（默认 GITHUB_TOKEN 只读）
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
 
 # 重复 push 自动取消在跑 job（省 CI 分钟，与后端一致）
 concurrency:
@@ -27,7 +33,25 @@ jobs:
           cache: pnpm
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
-      - name: 类型检查 + 单测（41 用例基线，见 frontend/README.md）
-        run: pnpm test
+      - name: 类型检查 + 单测（vitest，报告落 reports/junit.xml）
+        # why：走 CI 专用脚本而非 pnpm test——单测同时产出 JUnit XML，供 Checks 发布与归档，
+        # 本地 `pnpm test` 保持无副作用（不落文件）；用例数以 vitest 输出为准，不在此写死
+        run: pnpm run test:ci
+      - name: 发布逐用例结果（Checks / PR 注释）
+        # why hashFiles 守卫：用例收集期崩溃时不产出 junit.xml，直接发布会掩盖真正的失败原因；
+        # why continue-on-error：结果发布是辅助通道，权限/服务抖动不应把已通过的测试门禁判红
+        if: always() && hashFiles('reports/junit.xml') != ''
+        continue-on-error: true
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: reports/junit.xml
+      - name: 归档测试报告（vitest JUnit XML）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-report
+          path: reports/
+          if-no-files-found: ignore
+          retention-days: 14
       - name: 构建（vue-tsc -b 类型门禁 + vite build 产物验证）
         run: pnpm build
