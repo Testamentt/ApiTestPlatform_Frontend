@@ -1,3 +1,4 @@
+// 本项目编码格式：UTF-8（无 BOM）。
 // 展示格式化工具（纯函数，便于单测与复用）
 function pad(n: number): string {
   return n < 10 ? `0${n}` : String(n)

@@ -1,3 +1,4 @@
+// 本项目编码格式：UTF-8（无 BOM）。
 // 执行任务 API（对齐 backend/app/api/v1/tasks.py）
 import { apiGet, apiPost } from './index'
 import type { ListTasksParams, Page, Task, TaskCreate, TaskResults } from '@/types'

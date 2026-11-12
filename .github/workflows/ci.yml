@@ -1,3 +1,4 @@
+# 本项目编码格式：UTF-8（无 BOM）。
 # 前端 CI 门禁：类型检查 + 单测 + 构建产物验证。
 # frontend 为独立仓库（pnpm workspace root），与后端仓库 CI 互不阻塞。
 name: Frontend CI
@@ -33,6 +34,11 @@ jobs:
           cache: pnpm
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
+      - name: 编码格式门禁
+        # why：中文乱码几乎都来自三类可机械判定的漂移——文件不是 UTF-8（GBK/cp936 存盘）、
+        # 带了 BOM、新文件忘了写首行声明。本门禁与 backend 的 encoding_check.py 同标准，
+        # 因为 frontend 是独立仓库，读不到后端脚本；放在安装依赖之后是为了与既有步骤同环境。
+        run: pnpm run check:encoding
       - name: 类型检查 + 单测（vitest，报告落 reports/junit.xml）
         # why：走 CI 专用脚本而非 pnpm test——单测同时产出 JUnit XML，供 Checks 发布与归档，
         # 本地 `pnpm test` 保持无副作用（不落文件）；用例数以 vitest 输出为准，不在此写死

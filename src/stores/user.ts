@@ -1,3 +1,4 @@
+// 本项目编码格式：UTF-8（无 BOM）。
 import { defineStore } from 'pinia'
 
 // why：token 是唯一鉴权凭证。初始值优先取 localStorage（刷新不丢），

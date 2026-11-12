@@ -1,3 +1,4 @@
+// 本项目编码格式：UTF-8（无 BOM）。
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AxiosHeaders, type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { createPinia, setActivePinia } from 'pinia'

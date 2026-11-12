@@ -1,3 +1,4 @@
+// 本项目编码格式：UTF-8（无 BOM）。
 import { createApp } from 'vue'
 import ElementPlus from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'

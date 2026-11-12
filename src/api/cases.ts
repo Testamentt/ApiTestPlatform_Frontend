@@ -1,3 +1,4 @@
+// 本项目编码格式：UTF-8（无 BOM）。
 // 用例 API（对齐 backend/app/api/v1/cases.py）
 import { apiDelete, apiGet, apiPost, apiPut } from './index'
 import type {

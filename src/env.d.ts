@@ -1,3 +1,4 @@
+// 本项目编码格式：UTF-8（无 BOM）。
 /// <reference types="vite/client" />
 
 // why：side-effect CSS 导入（element-plus/dist/index.css、styles/index.scss）

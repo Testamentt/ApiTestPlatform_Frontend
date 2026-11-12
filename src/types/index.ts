@@ -1,3 +1,4 @@
+// 本项目编码格式：UTF-8（无 BOM）。
 // 全局类型：镜像后端 Pydantic schema（backend/app/schemas/*）。
 // why：前后端契约单一来源在后端；前端按需抽取，避免 any 裸奔。
 
@@ -59,6 +60,15 @@ export interface CaseUpdate {
   assertions?: unknown[] | null
 }
 
+/**
+ * 质量扣分项（对齐 app/services/case_quality.py 的 QualityFlag）。
+ * why：信任度是可追问的——每条扣分记录原因与分值，否则它只是个数字。
+ */
+export interface QualityFlag {
+  reason: string
+  penalty: number
+}
+
 export interface TestCase {
   id: number
   name: string
@@ -71,7 +81,10 @@ export interface TestCase {
   assertions: unknown[] | null
   status: CaseStatus
   source: CaseSource
+  /** 0-100，AI 用例逐条计算（手工用例=100） */
   trust_score: number
+  /** 扣分原因；手工用例为 null */
+  quality_flags?: QualityFlag[] | null
   /** 批准人（draft→active 时写入；内容变更降级后清空） */
   reviewer?: string | null
   created_at: string
@@ -178,7 +191,12 @@ export interface GenerateSummary {
   generated?: number
   draft_created?: number
   rejected?: number
-  rejected_detail?: { operation_id: string; reason: string }[]
+  /** 语义校验拒绝明细：reason 之外还带逐条违规（rule/level/detail） */
+  rejected_detail?: {
+    operation_id: string
+    reason: string
+    violations?: { rule: string; level: string; detail: string }[]
+  }[]
   skipped_by_filter?: number
   skipped_detail?: string[]
   /** 生成链路超时：任务级预算耗尽时置 true，并留进度快照 */

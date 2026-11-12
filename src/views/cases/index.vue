@@ -1,3 +1,4 @@
+<!-- 本项目编码格式：UTF-8（无 BOM）。 -->
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
@@ -300,7 +301,20 @@ onMounted(() => void loadCases())
         </el-table-column>
         <el-table-column label="信任度" width="76" align="center">
           <template #default="{ row }">
-            <span class="num">{{ row.trust_score }}</span>
+            <!-- why：分数必须可追问到原因，否则它只是个数字；有扣分时给 tooltip 展开明细 -->
+            <el-tooltip v-if="row.quality_flags?.length" placement="top" :show-after="200">
+              <template #content>
+                <div class="quality-tip">
+                  <div class="quality-tip__title">扣分原因（共 -{{ 100 - row.trust_score }} 分）</div>
+                  <div v-for="(flag, i) in row.quality_flags" :key="i" class="quality-tip__row">
+                    <span>-{{ flag.penalty }}</span>
+                    <span>{{ flag.reason }}</span>
+                  </div>
+                </div>
+              </template>
+              <span class="num trust is-scored">{{ row.trust_score }}</span>
+            </el-tooltip>
+            <span v-else class="num">{{ row.trust_score }}</span>
           </template>
         </el-table-column>
         <el-table-column label="状态" width="92">
@@ -418,5 +432,31 @@ onMounted(() => void loadCases())
   display: flex;
   justify-content: flex-end;
   padding: 14px 16px;
+}
+
+/* 有扣分原因的分数给出可交互视觉线索，否则用户不会想到去 hover */
+.num.trust.is-scored {
+  cursor: help;
+  border-bottom: 1px dashed var(--tp-pending);
+}
+
+.quality-tip {
+  max-width: 320px;
+  line-height: 1.6;
+}
+
+.quality-tip__title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.quality-tip__row {
+  display: flex;
+  gap: 8px;
+
+  span:first-child {
+    flex-shrink: 0;
+    color: var(--tp-failed);
+  }
 }
 </style>

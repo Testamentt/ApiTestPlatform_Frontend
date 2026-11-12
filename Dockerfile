@@ -1,3 +1,4 @@
+# 本项目编码格式：UTF-8（无 BOM）。
 # 前端容器镜像：多阶段构建（Node 构建 → nginx 静态托管）。
 # 与 backend/docker-compose.yml 的 api 服务同网：nginx 反向代理 /api 与 /docs 到 api:8000，
 # 同源访问规避后端 CORS 白名单为空的问题（与 dev 的 Vite 代理行为一致）。

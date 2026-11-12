@@ -1,3 +1,4 @@
+<!-- 本项目编码格式：UTF-8（无 BOM）。 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -296,11 +297,20 @@ onBeforeUnmount(stopPolling)
               </div>
             </div>
             <div v-if="summary.rejected_detail && summary.rejected_detail.length" class="gen-rejected">
-              <p class="gen-rejected__title">被拒详情（schema 校验失败 / LLM 失败 / 敏感扫描拦截）</p>
+              <p class="gen-rejected__title">
+                被拒详情（语义校验 / schema 校验失败 / LLM 失败 / 敏感扫描拦截）
+              </p>
               <div v-for="item in summary.rejected_detail" :key="item.operation_id" class="gen-rejected__item">
                 <span class="mono">{{ item.operation_id }}</span>
                 <span>{{ item.reason }}</span>
               </div>
+              <!-- why：语义违规逐条列出（rule + detail），否则用户只知道"被拒"不知道"错在哪" -->
+              <template v-for="item in summary.rejected_detail" :key="`v-${item.operation_id}`">
+                <div v-for="(v, i) in item.violations ?? []" :key="i" class="gen-rejected__violation">
+                  <span class="gen-rejected__rule" :class="`is-${v.level}`">{{ v.rule }}</span>
+                  <span>{{ v.detail }}</span>
+                </div>
+              </template>
             </div>
             <!-- why：定向未命中的 operation_id 必须逐条可见，否则"全部跳过仍成功"看不到原因 -->
             <div v-if="skippedDetail.length" class="gen-rejected gen-rejected--skipped">
@@ -364,7 +374,19 @@ onBeforeUnmount(stopPolling)
         </el-table-column>
         <el-table-column label="信任度" width="76" align="center">
           <template #default="{ row }">
-            <span class="num">{{ row.trust_score }}</span>
+            <el-tooltip v-if="row.quality_flags?.length" placement="top" :show-after="200">
+              <template #content>
+                <div class="quality-tip">
+                  <div class="quality-tip__title">扣分原因（共 -{{ 100 - row.trust_score }} 分）</div>
+                  <div v-for="(flag, i) in row.quality_flags" :key="i" class="quality-tip__row">
+                    <span>-{{ flag.penalty }}</span>
+                    <span>{{ flag.reason }}</span>
+                  </div>
+                </div>
+              </template>
+              <span class="num trust is-scored">{{ row.trust_score }}</span>
+            </el-tooltip>
+            <span v-else class="num">{{ row.trust_score }}</span>
           </template>
         </el-table-column>
         <el-table-column label="更新时间" width="128">
@@ -566,6 +588,25 @@ onBeforeUnmount(stopPolling)
   color: var(--tp-ink-700);
 }
 
+/* 语义违规：规则名做视觉锚点，level 区分拒掉（error）与仅降分（warn） */
+.gen-rejected__violation {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--tp-ink-500);
+  margin: 2px 0 2px 12px;
+}
+
+.gen-rejected__rule {
+  flex-shrink: 0;
+  font-family: var(--tp-font-mono, monospace);
+  color: var(--tp-failed);
+
+  &.is-warn {
+    color: var(--tp-pending);
+  }
+}
+
 .gen-draft {
   overflow: hidden;
 }
@@ -608,6 +649,31 @@ onBeforeUnmount(stopPolling)
   text-align: center;
   font-size: 13px;
   color: var(--tp-ink-400);
+}
+
+.num.trust.is-scored {
+  cursor: help;
+  border-bottom: 1px dashed var(--tp-pending);
+}
+
+.quality-tip {
+  max-width: 320px;
+  line-height: 1.6;
+}
+
+.quality-tip__title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.quality-tip__row {
+  display: flex;
+  gap: 8px;
+
+  span:first-child {
+    flex-shrink: 0;
+    color: var(--tp-failed);
+  }
 }
 
 @media (max-width: 1080px) {

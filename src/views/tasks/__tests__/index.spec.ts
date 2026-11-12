@@ -1,3 +1,4 @@
+// 本项目编码格式：UTF-8（无 BOM）。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import TasksView from '@/views/tasks/index.vue'

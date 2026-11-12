@@ -1,3 +1,4 @@
+// 本项目编码格式：UTF-8（无 BOM）。
 import { describe, expect, it } from 'vitest'
 import { formatDateTime, formatTime, truncate } from '@/utils/format'
 

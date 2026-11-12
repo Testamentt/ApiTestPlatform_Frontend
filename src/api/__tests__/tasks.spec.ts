@@ -1,3 +1,4 @@
+// 本项目编码格式：UTF-8（无 BOM）。
 import { describe, expect, it, vi } from 'vitest'
 
 // why：验证 tasks API 模块的端点契约（URL + 方法），mock 掉 api/index 快捷方法，不发真实请求。

@@ -1,3 +1,4 @@
+// 本项目编码格式：UTF-8（无 BOM）。
 // AI 生成 API（对齐 backend/app/api/v1/generate.py）
 import { apiGet, apiPost } from './index'
 import type { GenerateRequest, GenerationTask } from '@/types'

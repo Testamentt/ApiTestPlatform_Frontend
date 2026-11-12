@@ -1,3 +1,4 @@
+// 本项目编码格式：UTF-8（无 BOM）。
 import { describe, expect, it, vi } from 'vitest'
 
 // why：验证 cases API 模块的端点契约（URL + 方法 + 参数），用 mock 替换 api/index 快捷方法，
