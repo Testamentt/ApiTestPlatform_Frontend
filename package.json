@@ -4,6 +4,21 @@
   "version": "0.1.0",
   "type": "module",
   "packageManager": "pnpm@10.6.5",
+  "description": "智能化接口测试效能平台前端（Vue 3 + TypeScript + Vite + Element Plus）",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Testamentt/ApiTestPlatform_Frontend.git"
+  },
+  "homepage": "https://github.com/Testamentt/ApiTestPlatform_Frontend#readme",
+  "keywords": [
+    "vue3",
+    "typescript",
+    "vite",
+    "element-plus",
+    "test-platform",
+    "api-testing"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
